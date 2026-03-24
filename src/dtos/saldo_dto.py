@@ -3,9 +3,8 @@ from marshmallow import fields
 
 ma = Marshmallow()
 
-class UsuarioDTO(ma.Schema):
+class SaldoDTO(ma.Schema):
     id_usuario = fields.Int()
-    nombre = fields.Str()
-    email = fields.Email()
-    estado = fields.Str()
-    creado_en = fields.DateTime()
+    total_ingresos = fields.Float()
+    total_gastos = fields.Float()
+    saldo_actual = fields.Float()
