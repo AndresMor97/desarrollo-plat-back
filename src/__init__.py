@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_cors import CORS
 from src.models.transaccion_model import db
 from src.dtos.transaccion_dto import ma
 from src.routes.transaccion_routes import transaccion_bp
@@ -10,6 +11,9 @@ def create_app():
 
     # 2. Cargar la configuración (Asegúrate de tener el archivo config.py en la raíz)
     app.config.from_object('config.Config')
+
+    # CORS
+    CORS(app, resources={r"/api/*": {"origins": "http://localhost:4200"}})
 
     # 3. Inicializar extensiones
     # Vincular SQLAlchemy y Marshmallow a la aplicación
