@@ -4,6 +4,7 @@ from src.models.transaccion_model import db
 from src.dtos.transaccion_dto import ma
 from src.routes.transaccion_routes import transaccion_bp
 from src.utils.response_helper import standard_response
+from src.routes.usuario_routes import usuario_bp
 
 def create_app():
     # 1. Crear la instancia de Flask
@@ -13,7 +14,7 @@ def create_app():
     app.config.from_object('config.Config')
 
     # CORS
-    CORS(app, resources={r"/api/*": {"origins": "http://localhost:4200"}})
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     # 3. Inicializar extensiones
     # Vincular SQLAlchemy y Marshmallow a la aplicación
@@ -32,5 +33,6 @@ def create_app():
     # 5. Registro de Blueprints
     # Esto une las rutas de transacciones con el prefijo /api
     app.register_blueprint(transaccion_bp, url_prefix='/api')
+    app.register_blueprint(usuario_bp, url_prefix='/api')
 
     return app
