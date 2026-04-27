@@ -1,5 +1,6 @@
 from src.models.transaccion_model import db
 
+
 class Categoria(db.Model):
     __tablename__ = 'categorias'
 
