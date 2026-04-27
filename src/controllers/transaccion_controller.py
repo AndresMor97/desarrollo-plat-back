@@ -107,3 +107,58 @@ def listar_historial_logic(current_user):
 
     except Exception as e:
         return standard_response("Error al obtener el historial", str(e), 500)
+
+# -------------------------------------------------------------
+# Sprint 3 - HU 5: Estadísticas de Gastos (Gráfico)
+# -------------------------------------------------------------
+def obtener_estadisticas_gastos_logic(current_user):
+    try:
+        # Sumamos los montos, agrupamos por categoría y filtramos solo los GASTOS del usuario actual
+        estadisticas = db.session.query(
+            Categoria.nombre.label('categoria_nombre'),
+            func.sum(Transaccion.monto).label('total')
+        ).join(
+            Categoria, Transaccion.id_categoria == Categoria.id_categoria, isouter=True
+        ).filter(
+            Transaccion.id_usuario == current_user.id_usuario,
+            Transaccion.tipo == 'gasto'
+        ).group_by(
+            Categoria.nombre
+        ).all()
+
+        # Formateamos el resultado para que Chart.js o ng2-charts lo entienda fácilmente
+        resultado = []
+        for est in estadisticas:
+            resultado.append({
+                "categoria": est.categoria_nombre or "Otros",
+                "total": float(est.total)
+            })
+
+        return standard_response("Estadísticas obtenidas", resultado, 200)
+
+    except Exception as e:
+        return standard_response("Error al obtener estadísticas", str(e), 500)
+
+# -------------------------------------------------------------
+# Sprint 3 - HU 6: Eliminar Transacción (Bonus)
+# -------------------------------------------------------------
+def eliminar_transaccion_logic(id_transaccion, current_user):
+    try:
+        # SEGURIDAD CRÍTICA: Buscamos la transacción, pero exigimos que pertenezca al current_user
+        transaccion = Transaccion.query.filter_by(
+            id_transaccion=id_transaccion,
+            id_usuario=current_user.id_usuario
+        ).first()
+
+        # Si no existe o es de otro usuario (intento de hackeo), bloqueamos
+        if not transaccion:
+            return standard_response("Transacción no encontrada o no autorizada", None, 404)
+
+        db.session.delete(transaccion)
+        db.session.commit()
+
+        return standard_response("Transacción eliminada con éxito", None, 200)
+
+    except Exception as e:
+        db.session.rollback() # Revertimos cambios si hay error en DB
+        return standard_response("Error al eliminar la transacción", str(e), 500)
