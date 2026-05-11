@@ -1,4 +1,4 @@
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, case
 from marshmallow import ValidationError
 from src.models.categoria_model import Categoria
 from src.models.transaccion_model import db, Transaccion
@@ -11,9 +11,8 @@ categoria_single_schema = CategoriaDTO()
 saldo_categoria_schema = SaldoCategoriaDTO(many=True)
 
 def listar_categorias_logic(current_user):
-    """Devuelve todas las categorías (generales). Ya no filtra por tipo."""
+    """Devuelve todas las categorías (generales)."""
     try:
-        # Filtro: Trae las que no tienen dueño (NULL) O las que le pertenecen al usuario
         query = Categoria.query.filter(
             or_(Categoria.id_usuario == None, Categoria.id_usuario == current_user.id_usuario)
         )
@@ -30,10 +29,8 @@ def listar_categorias_logic(current_user):
 def crear_categoria_logic(data, current_user):
     """Permite al usuario crear una categoría personalizada general."""
     try:
-        # 1. Validar los datos recibidos (ahora solo pide el nombre)
         validated_data = categoria_single_schema.load(data)
         
-        # 2. Evitar duplicados: Verificar si el usuario ya creó una categoría con ese mismo nombre
         existe = Categoria.query.filter_by(
             nombre=validated_data['nombre'], 
             id_usuario=current_user.id_usuario
@@ -42,7 +39,6 @@ def crear_categoria_logic(data, current_user):
         if existe:
             return standard_response("Ya tienes una categoría con ese nombre", None, 400)
 
-        # 3. Crear la nueva categoría asociándola al usuario actual (sin tipo)
         nueva_categoria = Categoria(
             id_usuario=current_user.id_usuario,
             nombre=validated_data['nombre']
@@ -85,29 +81,36 @@ def eliminar_categoria_logic(id_categoria, current_user):
 
 
 def obtener_saldos_por_categoria_logic(current_user):
-    """Calcula el saldo agrupando por categoría y por el tipo de la transacción."""
+    """Calcula el total de ingresos, gastos y el saldo neto por categoría."""
     try:
+        # Sumamos solo si es ingreso; si no, suma 0
+        sum_ingresos = func.sum(case((Transaccion.tipo == 'ingreso', Transaccion.monto), else_=0))
+        # Sumamos solo si es gasto; si no, suma 0
+        sum_gastos = func.sum(case((Transaccion.tipo == 'gasto', Transaccion.monto), else_=0))
+
         resultados = db.session.query(
             Categoria.id_categoria,
             Categoria.nombre,
-            Transaccion.tipo.label('tipo_transaccion'), # <-- Extraemos el tipo de la Transacción
-            func.sum(Transaccion.monto).label('total_acumulado')
+            sum_ingresos.label('total_ingresos'),
+            sum_gastos.label('total_gastos')
         ).join(
             Transaccion, Categoria.id_categoria == Transaccion.id_categoria
         ).filter(
             Transaccion.id_usuario == current_user.id_usuario
         ).group_by(
-            Categoria.id_categoria,
-            Transaccion.tipo # <-- Agrupamos por ambos para que no mezcle ingresos con gastos de una misma categoría
+            Categoria.id_categoria
         ).all()
 
         data = []
         for r in resultados:
+            ingresos = float(r.total_ingresos or 0)
+            gastos = float(r.total_gastos or 0)
             data.append({
                 "id_categoria": r.id_categoria,
                 "nombre": r.nombre,
-                "tipo_transaccion": r.tipo_transaccion, # <-- Usamos el nuevo nombre del campo
-                "total_acumulado": float(r.total_acumulado)
+                "total_ingresos": ingresos,
+                "total_gastos": gastos,
+                "saldo_total": ingresos - gastos  # <-- Aquí hacemos la matemática final
             })
 
         resultado = saldo_categoria_schema.dump(data)
