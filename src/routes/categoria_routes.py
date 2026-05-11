@@ -3,7 +3,7 @@ from src.controllers.categoria_controller import (
     listar_categorias_logic, 
     crear_categoria_logic,
     eliminar_categoria_logic,
-    obtener_saldos_por_categoria_logic # <-- Nueva importación
+    obtener_saldos_por_categoria_logic
 )
 from src.utils.auth_middleware import token_required
 
@@ -12,8 +12,8 @@ categoria_bp = Blueprint('categoria_bp', __name__)
 @categoria_bp.route('/categorias', methods=['GET'])
 @token_required
 def get_categorias(current_user):
-    tipo = request.args.get('tipo')
-    return listar_categorias_logic(tipo, current_user)
+    # Ya no pasamos el tipo, traemos todas
+    return listar_categorias_logic(current_user)
 
 @categoria_bp.route('/categorias', methods=['POST'])
 @token_required
@@ -26,7 +26,6 @@ def post_categoria(current_user):
 def delete_categoria(current_user, id_categoria):
     return eliminar_categoria_logic(id_categoria, current_user)
 
-# <-- NUEVO ENDPOINT PARA SALDOS POR CATEGORÍA -->
 @categoria_bp.route('/categorias/saldos', methods=['GET'])
 @token_required
 def get_saldos_categorias(current_user):
