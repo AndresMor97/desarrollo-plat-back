@@ -63,3 +63,34 @@ def crear_categoria_logic(data, current_user):
     except Exception as e:
         db.session.rollback()
         return standard_response("Error interno del servidor", str(e), 500)
+
+
+def eliminar_categoria_logic(id_categoria, current_user):
+    """Permite al usuario eliminar una de sus categorías personalizadas."""
+    try:
+        # Buscamos la categoría por su ID
+        categoria = Categoria.query.filter_by(id_categoria=id_categoria).first()
+
+        # 1. Verificamos si existe
+        if not categoria:
+            return standard_response("Categoría no encontrada", None, 404)
+
+        # 2. Seguridad: Verificamos si es una categoría del sistema
+        if categoria.id_usuario is None:
+            return standard_response("No puedes eliminar las categorías por defecto del sistema", None, 403)
+
+        # 3. Seguridad: Verificamos si la categoría le pertenece al usuario actual
+        if categoria.id_usuario != current_user.id_usuario:
+            return standard_response("No tienes permiso para eliminar esta categoría", None, 403)
+
+        # Si pasa las validaciones de seguridad, la eliminamos
+        db.session.delete(categoria)
+        db.session.commit()
+
+        # Nota: Gracias a tu diseño de BD (ON DELETE SET NULL), si había transacciones 
+        # asociadas a esta categoría, no se borrarán, solo quedarán sin categoría.
+        return standard_response("Categoría eliminada con éxito", None, 200)
+
+    except Exception as e:
+        db.session.rollback()
+        return standard_response("Error al eliminar la categoría", str(e), 500)
