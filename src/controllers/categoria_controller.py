@@ -1,13 +1,14 @@
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from marshmallow import ValidationError
 from src.models.categoria_model import Categoria
-from src.models.transaccion_model import db  # Necesario para guardar nuevas categorías
-from src.dtos.categoria_dto import CategoriaDTO
+from src.models.transaccion_model import db, Transaccion  # Agregamos Transaccion para el JOIN
+from src.dtos.categoria_dto import CategoriaDTO, SaldoCategoriaDTO # Agregamos el nuevo DTO
 from src.utils.response_helper import standard_response
 
 # Instancias de los DTOs
 categoria_schema = CategoriaDTO(many=True)
-categoria_single_schema = CategoriaDTO() # Nuevo: Para validar la creación de una sola categoría
+categoria_single_schema = CategoriaDTO() 
+saldo_categoria_schema = SaldoCategoriaDTO(many=True) # Instancia para la lista de saldos
 
 def listar_categorias_logic(tipo, current_user):
     """Devuelve las categorías del sistema y las personalizadas del usuario."""
@@ -87,10 +88,45 @@ def eliminar_categoria_logic(id_categoria, current_user):
         db.session.delete(categoria)
         db.session.commit()
 
-        # Nota: Gracias a tu diseño de BD (ON DELETE SET NULL), si había transacciones 
-        # asociadas a esta categoría, no se borrarán, solo quedarán sin categoría.
         return standard_response("Categoría eliminada con éxito", None, 200)
 
     except Exception as e:
         db.session.rollback()
         return standard_response("Error al eliminar la categoría", str(e), 500)
+
+
+def obtener_saldos_por_categoria_logic(current_user):
+    """Calcula cuánto se ha gastado o ingresado en cada categoría del usuario."""
+    try:
+        # Realizamos un JOIN entre Categorias y Transacciones
+        # Sumamos el monto agrupando por el ID de la categoría
+        resultados = db.session.query(
+            Categoria.id_categoria,
+            Categoria.nombre,
+            Categoria.tipo,
+            func.sum(Transaccion.monto).label('total_acumulado')
+        ).join(
+            Transaccion, Categoria.id_categoria == Transaccion.id_categoria
+        ).filter(
+            Transaccion.id_usuario == current_user.id_usuario
+        ).group_by(
+            Categoria.id_categoria
+        ).all()
+
+        # Convertimos los resultados de la consulta en una lista de diccionarios
+        data = []
+        for r in resultados:
+            data.append({
+                "id_categoria": r.id_categoria,
+                "nombre": r.nombre,
+                "tipo": r.tipo,
+                "total_acumulado": float(r.total_acumulado)
+            })
+
+        # Validamos y volcamos la data con nuestro DTO
+        resultado = saldo_categoria_schema.dump(data)
+
+        return standard_response("Saldos por categoría obtenidos", resultado, 200)
+
+    except Exception as e:
+        return standard_response("Error al calcular saldos por categoría", str(e), 500)
